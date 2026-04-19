@@ -16,6 +16,10 @@
 
 Pair repo: **`bellring-extension`** (Chrome MV3 + Firefox/Edge portable) — the visible surface that renders celebration popups.
 
+## 1.a Status / Tier
+
+**Tier B — maintained, production-touching.** Single-file `server.js` monolith on Render free tier, serving CN reference customer. No active feature work pre-Bellring-multi-tenant-pivot; critical security + dependency bumps only (npm audit wave on `43eab72`). Pivot to multi-tenant Bellring (Hono on Coolify + Supabase) is roadmapped but not executed — this repo may retire or become the CN-dedicated instance. Product brand lives under **Vagary Labs → Product brands → Bellring** (universal §41).
+
 ## 2. References
 
 - `~/.claude/conventions/universal-claudemd.md` — universal laws, MCP routing, lifecycle, §41 Brand architecture (Bellring positioning)
@@ -134,11 +138,15 @@ Routing hints for this repo (see universal §6 for the full map):
 | GitHub (Cramraika) | `gh` CLI default auth | Normal push flow (SMPL562 retired 2026-04-19; repo migrated to Cramraika) |
 | n8n | webhook | `N8N_WEBHOOK_URL=https://n8n.chinmayramraika.in` + `N8N_API_KEY` header |
 
-**Observability**:
+## 11.a Observability
+
 - **Render dashboard** — primary log source (web + cron). Reference-only, no SSH.
+- **In-process logging** — `console.log` + `MemoryManager` emits heap warnings at 200MB + `global.gc` on threshold.
+- **Health endpoints** — `/ping` (keepalive to mitigate 15-min idle spin-down), `/stats` (client count, OTP count, heap MB) — gated behind admin bearer.
 - **GlitchTip** (if `SENTRY_DSN` wired) — error tracker on Vagaryvoice; else Sentry org above.
 - **Grafana** — alert candidates: WebSocket reconnect rate, `/webhook` 5xx, heap > 200MB (already logged by `MemoryManager`).
-- **No APM / tracing** — MV3 service-worker cadence makes OpenTelemetry marginal.
+- **No APM / tracing** — single-process single-file service + MV3 service-worker cadence makes OpenTelemetry marginal. Pivot to Supabase Realtime lands native observability for the multi-tenant build.
+- **Gap**: no structured logger (pino/winston); JSON-line logs would improve Loki querying. Candidate pre-pivot if needed.
 
 ## 12. Past Incidents / History (git-observable)
 
@@ -171,6 +179,18 @@ Routing hints for this repo (see universal §6 for the full map):
 None. This repo follows universal laws as-is. Two repo-specific notes:
 - **Normal push flow** — SMPL562 retired 2026-04-19; repo now on Cramraika, standard `gh` auth.
 - **README is frozen** per `project-hygiene.md` → README-curation section (`bellring-server` / `bellring-extension` listed as "whitelabel SaaS brand surface — frozen"). Do not edit `README.md` without explicit user request; edit `docs/ENVIRONMENTS.md` for ops changes instead.
+
+## 14.a Doc Maintainers
+
+| Doc | Posture | Update trigger |
+|---|---|---|
+| `CLAUDE.md` | **Live contract** | Stack shift, new dependency, Bellring-pivot phase transition |
+| `README.md` | **Frozen** per hygiene § README curation (whitelabel brand surface) | Explicit user request only |
+| `docs/ENVIRONMENTS.md` | Live — ops-living | Env var change, deploy target change, new troubleshooting case |
+| `.env.example` | Live | Any new required env added by code change |
+| Pair-repo (`bellring-extension`) `CLAUDE.md` | Sibling — cross-reference on any schema / auth flow change | On any event_type schema / WebSocket protocol / OTP flow change |
+
+Doc-maintainer: Chinmay. Claude edits only on explicit request for README; body-edit authority for CLAUDE.md + ENVIRONMENTS.md runs through normal review. Preamble auto-sync via `~/.claude/scripts/sync-preambles.py`.
 
 ## 15. Plugin Profile & Context
 
