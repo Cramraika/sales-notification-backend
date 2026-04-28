@@ -1,199 +1,83 @@
-# Bellring Server
+# bellring-server — CLAUDE.md v2
 
-## Claude Preamble
-<!-- VERSION: 2026-04-19-v12 -->
-<!-- SYNC-SOURCE: ~/.claude/conventions/universal-claudemd.md -->
+**Date:** 2026-04-28 (S11B authoring)
+**Supersedes:** v1 (commit-sha pending S11C verification)
+**Tier:** B (production-touching for CN reference customer; off-fleet on Render today)
 
-**Universal laws** (§4), **MCP routing** (§6), **Drift protocol** (§11), **Dynamic maintenance** (§14), **Capability resolution** (§15), **Subagent SKILL POLICY** (§16), **Session continuity** (§17), **Decision queue** (§17.a), **Attestation** (§18), **Cite format** (§19), **Three-way disagreement** (§20), **Pre-conditions** (§21), **Provenance markers** (§22), **Redaction rules** (§23), **Token budget** (§24), **Tool-failure fallback** (§25), **Prompt-injection rule** (§26), **Append-only discipline** (§27), **BLOCKED_BY markers** (§28), **Stop-loss ladder** (§29), **Business-invariant checks** (§30), **Plugin rent rubric** (§31), **Context ceilings** (§32), **Doc reference graph** (§33), **Anti-hallucination** (§34), **Past+Present+Future body** (§35), **Project trackers** (§36), **Doc ownership** (§37), **Archive-on-delete** (§38), **Sponsor + white-label** (§39), **Doc-vs-code drift** (§40), **Brand architecture** (§41), **Design system integration** (§42).
+## Identity & Role
 
-**Sources**: `~/.claude/conventions/universal-claudemd.md` (laws, MCP routing, lifecycle, rent rubric, doc-graph, anti-hallucination, brand architecture) + `~/.claude/conventions/project-hygiene.md` (doc placement, cleanup, archive-on-delete, ownership matrix) + `~/.claude/conventions/design-system.md` (per-repo Tier A/B/C design posture, Stitch wiring). Read relevant sections before significant work. Re-audit due **2026-07-19**. Sync: `~/.claude/scripts/sync-preambles.py`.
+`bellring-server` is the **backend half of Bellring** — whitelabel SaaS for sales-team celebration notifications (sales-floor bell-ringing ritual; closing a deal triggers unmissable team-wide popups). Receives CRM webhooks (LeadSquared, HubSpot, Salesforce, generic), issues OTP auth, fans real-time celebration events to browser extensions over WebSocket. Tier model: Free / $19 Team / $79 Growth / $299+ Enterprise. Repo renamed from `sales-notification-backend` 2026-04-19; previously codenamed "Salvo". Vagary Labs brand: **Bellring** (product brand).
 
----
+## Coverage Today (post-PCN-S6/S7/S11A)
 
-## 1. Business Line
-
-**Bellring Server** — the backend half of **Bellring**, a whitelabel SaaS for sales-team celebration notifications. Brand philosophy: the sales-floor bell-ringing ritual every team does when a deal closes — unmissable, visceral, team-wide. Receives CRM webhooks (LeadSquared, HubSpot, Salesforce, generic), issues OTP auth, and fans real-time celebration events to connected browser extensions over WebSocket. Tier model: Free / $19 Team / $79 Growth / $299+ Enterprise. Repo renamed from `sales-notification-backend` 2026-04-19 (Phase 3); previously codenamed "Salvo" during the whitelabel-pivot design phase. Current Coding Ninjas deployment (~300 BDEs, LeadSquared) is the reference customer.
-
-Pair repo: **`bellring-extension`** (Chrome MV3 + Firefox/Edge portable) — the visible surface that renders celebration popups.
-
-## 1.a Status / Tier
-
-**Tier B — maintained, production-touching.** Single-file `server.js` monolith on Render free tier, serving CN reference customer. No active feature work pre-Bellring-multi-tenant-pivot; critical security + dependency bumps only (npm audit wave on `43eab72`). Pivot to multi-tenant Bellring (Hono on Coolify + Supabase) is roadmapped but not executed — this repo may retire or become the CN-dedicated instance. Product brand lives under **Vagary Labs → Product brands → Bellring** (universal §41).
-
-## 2. References
-
-- `~/.claude/conventions/universal-claudemd.md` — universal laws, MCP routing, lifecycle, §41 Brand architecture (Bellring positioning)
-- `~/.claude/conventions/project-hygiene.md` — doc placement, cleanup, local-workspaces
-- `~/.claude/specs/2026-04-19-sales-notification-whitelabel.md` — **Bellring** whitelabel/multi-tenant spec (renamed from Salvo 2026-04-19; roadmap Phase 2+)
-- `~/.claude/specs/2026-04-19-brand-rename-proposal.md` — Phase 3 rename rationale (Salvo → Bellring)
-- Sibling repo: `/Users/chinmayramraika/Documents/Github/bellring-extension/` — Chrome MV3 consumer (v1.0.4)
-
-## 3. Stack
-
-- **Runtime**: Node.js ≥16 (CI pins Node 20). `server.js` is a single-file monolith.
-- **HTTP/API**: Express 4 + `cors` + `express-rate-limit`
-- **Realtime**: `ws` library, path `/ws`, JWT-token query-param auth
-- **Auth**: JWT (`jsonwebtoken`) with 30-day expiry; OTP sign-in via SendGrid (`@sendgrid/mail`); `@codingninjas.com` domain allowlist hardcoded
-- **Storage**: in-memory `Map` (OTPs, clients, connection state) + `tokens.json` file-backed persistence via `FileBackedStorage` (60s flush)
-- **Memory**: `--max-old-space-size=256` (256MB cap); `MemoryManager` auto-cleanup at 200MB
-- **Lint/tooling**: Biome 2 + Knip 6 (devDeps; no npm scripts wired yet)
-
-## 4. Active Role-Lanes
-
-- **Engineer** — primary (webhook route, WebSocket lifecycle, auth middleware, memory cleanup)
-- **SRE** — secondary (Render cold-start mitigation, SendGrid rate limits, WebSocket reconnect storms)
-- **Architect** — active for Bellring multi-tenant pivot (data model, Supabase migration, adapter surface)
-- **Security** — ongoing (webhook bearer, JWT secret rotation, CORS/origin checks, rate limit tuning)
-- **Manager / Writer** — dormant (no end-user docs beyond README + ENVIRONMENTS.md)
-- **Designer / Analyst / Marketer** — out of scope
-
-## 5. Build / Test / Deploy
-
-```bash
-npm install                 # install deps
-npm run dev                 # nodemon + 256MB heap cap
-npm start                   # prod mode: node --max-old-space-size=256 server.js
-```
-
-- **Tests**: none present. Webhook flow is validated manually per `docs/ENVIRONMENTS.md` curl snippet.
-- **CI**: `.github/workflows/ci.yml` — `node --check` on all `.js` + `npm audit --audit-level=critical` + `.env.example` var listing. Status GREEN (see `~/Documents/Github/CLAUDE.md` CI table).
-- **Deploy**: Render free tier — auto-deploys on push to `main` via `Procfile: web: node server.js`. Env vars set in Render dashboard.
-
-## 6. Key Directories
+Per matrix row `bellring-server` — **bare-fork stack-up cluster (Cluster 1)**:
 
 ```
-bellring-server/
-├── server.js           # all logic (Express, WebSocket, memory classes)
-├── Procfile            # Render deploy
-├── package.json        # deps + scripts
-├── .env.example        # 6 vars: PORT, NODE_ENV, EXTENSION_ID, WEBHOOK_TOKEN, JWT_SECRET, SENDGRID_API_KEY + n8n
-├── docs/
-│   └── ENVIRONMENTS.md # deploy + troubleshooting reference
-├── .github/workflows/
-│   └── ci.yml          # syntax + audit + env check
-└── .claude/
-    └── settings.json   # permission denies + disabled-plugin allowlist
+Mail | DNS | RP | Orch  | Obs | Backup | Sup | Sec | Tun | Err | Wflw | Spec
+ NA  | T   | NA | NA(R) | NA  | NA     | T   | U   | NA  | NA  | NA   | NA
 ```
 
-No `src/`, `test/`, `scripts/`, `docs/specs/`, or `docs/plans/` — the project is a single-file service. On the Bellring multi-tenant pivot this fans out into separate repos (`bellring-webhook-worker`, `bellring-dashboard`, `bellring-landing`); do NOT restructure this repo in place.
+- USED: Sec (Render env vars; pre-startup validation; `EXTENSION_ID` + `WEBHOOK_TOKEN` + `JWT_SECRET` + `SENDGRID_API_KEY`).
+- TRIGGER-TO-WIRE: DNS (once `bellring.<tld>` registered), Sup (Cosign post-PR-#50 — T or N-A given Render runtime; if Bellring multi-tenant pivot moves to Coolify, becomes T proper).
+- NA: Mail (SendGrid via API), RP, Obs, Backup, Tun, Err, Wflw, Spec.
+- NA(R) = on Render off-fleet today; pending Bellring multi-tenant pivot decision (stay on Render OR move to Coolify on Vagary).
 
-## 7. Dependency Graph
+## What's Wired (Render free tier)
 
-**Consumed by** (downstream):
-- `bellring-extension` (sibling repo, Chrome MV3) — connects to `/ws` with JWT, calls `/request-otp` + `/verify-otp`, receives webhook broadcasts.
+- **Production:** `https://sales-notification-backend.onrender.com` — Render free tier; auto-deploys on `main` push via `Procfile`. New Bellring-branded URL TBD once `.io/.app/.ai` domain chosen.
+- **CI:** GitHub Actions — `node --check` + `npm audit --audit-level=critical` + .env.example var listing. **GREEN.**
+- **CN reference customer:** ~300 BDEs; LeadSquared webhook integration.
+- **SendGrid:** OTP email; sender `noreply@codingninjas.com` (verified).
+- **Health endpoints:** `/ping` (keepalive), `/stats` (admin-bearer-gated).
 
-**Depends on** (upstream / external):
-- **SendGrid** — OTP email delivery. Sender: `noreply@codingninjas.com` (verified sender required).
-- **LeadSquared** — fires webhook on sale-close (authenticates via `WEBHOOK_TOKEN` bearer).
-- **Render free tier** — hosting. Single instance, ephemeral FS, 15-min idle spin-down.
-- **Chrome Web Store** — extension `EXTENSION_ID` is the CORS origin allowlist.
+## Stack
 
-**Upstream-of-upstream**: on Bellring multi-tenant pivot the graph rewires to Supabase Postgres + Realtime + Auth and Coolify/Vagaryvoice hosting (see spec §3.3-3.7).
+- **Runtime:** Node.js ≥16 (CI pins Node 20). Single-file `server.js` monolith. `--max-old-space-size=256` flag.
+- **HTTP/API:** Express 4 + cors + express-rate-limit
+- **Realtime:** `ws` library, path `/ws`, JWT-token query-param auth
+- **Auth:** JWT (jsonwebtoken) 30-day expiry; OTP via SendGrid; `@codingninjas.com` domain allowlist hardcoded
+- **Storage:** in-memory `Map` + `tokens.json` file-backed (60s flush)
+- **Lint/tooling:** Biome 2 + Knip 6
 
-## 8. Known Limitations
+## Roadmap (post-S11A)
 
-- **OTPs in-memory** — lost on Render restart; users must re-request. No DB yet.
-- **No message persistence** — offline BDEs miss notifications entirely. No queue replay on reconnect.
-- **Render cold start** — free tier spins down after 15 min idle; first request takes ~30s. `/ping` keepalive partially mitigates.
-- **Single-instance WebSocket** — max 50 clients per process (`ClientManager.maxClients`); no horizontal scaling, sticky sessions, or pub/sub.
-- **SendGrid rate limits** — free tier 100 emails/day; tight against 300-BDE onboarding waves.
-- **Hardcoded `@codingninjas.com` domain** — blocks white-label reuse without code change (see Bellring spec §3.2).
-- **IP-based rate limit** — corporate NAT / shared IPs can trip the 100 req/15min cap across distinct users.
-- **File-backed tokens** — `tokens.json` lives on Render ephemeral FS; survives soft restarts, not instance recycles.
-- **No integration tests** — CI is syntax + audit only.
+### Cluster 3 — Cosign per-repo CI fanout
+- T or N-A — depends on Bellring multi-tenant pivot decision. If repo stays on Render: N-A. If pivots to Coolify+Supabase: T (post host_page PR #50 merge).
 
-## 9. Security & Secrets
+### Bare-fork stack-up (Cluster 1; per dispatch §1.m)
+- Pending operator decision on multi-tenant pivot venue:
+  - **Path A — stay on Render** (CN-dedicated instance; this repo retires when Bellring multi-tenant lands as fresh `bellring-webhook-worker` repo).
+  - **Path B — pivot in-place to Coolify+Supabase** (rewrite Express monolith as Hono on Coolify; delegate auth to Supabase; broadcast via Supabase Realtime). Triggers full bare-fork stack-up.
 
-- **Secrets** (required env vars, all validated at startup with `process.exit(1)` on miss): `EXTENSION_ID`, `WEBHOOK_TOKEN`, `JWT_SECRET`, `SENDGRID_API_KEY`. Optional: `N8N_WEBHOOK_URL`, `N8N_API_KEY`.
-- **Storage**: Render dashboard (prod) + `.env` locally (gitignored). `.env.example` committed.
-- **NEVER commit** `.env`, `.env.*`, `.claude/settings.local.json`, `.mcp.json`, `tokens.json` (all in `.gitignore`).
-- **Rotation**: `JWT_SECRET` rotation invalidates every issued token (users must re-verify OTP). `WEBHOOK_TOKEN` rotation requires coordinated LeadSquared config update.
-- **Auth boundaries**:
-  - `/webhook` — `WEBHOOK_TOKEN` bearer only (LeadSquared trusts nothing else).
-  - `/request-otp`, `/verify-otp` — open but rate-limited + domain-gated + bearer optional.
-  - `/ws` — JWT in query param + origin check (`chrome-extension://${EXTENSION_ID}` only).
-- **Never skip hooks (`--no-verify`)** when committing. Repo is on Cramraika (migrated from SMPL562 2026-04-19). Push via standard flow.
+### Bellring multi-tenant pivot (authoritative spec: `~/.claude/specs/2026-04-19-sales-notification-whitelabel.md`)
+- **Phase 0 (Week 0):** strip `@codingninjas.com` branding; remove base64 URL hack; register `bellring.<tld>` + brand site.
+- **Phase 1 (Weeks 1-2):** Hono on Coolify + Supabase Auth + Postgres + Realtime.
+- **Phase 2 (Week 3):** Stripe tiers via MCP; PostHog event taxonomy; Sentry browser SDK.
+- **Phase 3 (Week 4):** Chrome Web Store + Firefox + Edge submissions; privacy + ToS + DPA pages; docs site `docs.bellring.<tld>`.
+- **Phase 4 (Weeks 5-6):** CRM adapters (LeadSquared P0, Salesforce + HubSpot P1, Pipedrive + Close P2); Product Hunt launch.
+- **Phase 5 (ongoing):** SAML/SCIM (Enterprise), analytics v2, custom animation uploader, self-host Docker image, SOC 2 Type II if Enterprise pipeline >3 deals.
 
-## 10. Deployment Environments
+## ADR Compliance
 
-| Env | Host | URL | Notes |
-|---|---|---|---|
-| Local dev | `localhost:3000` | `http://localhost:3000` | `npm run dev` (nodemon) |
-| Production (CN reference customer) | Render free tier | `https://sales-notification-backend.onrender.com` | Auto-deploys on `main` push; /ping keepalive recommended. New Bellring-branded URL TBD once `.io/.app/.ai` domain chosen |
+- **ADR-038 personal-scope:** ✓ — Cramraika org; SMPL562 retired 2026-04-19.
+- **ADR-033 Renovate canonical:** T (pending bare-fork stack-up).
+- **ADR-041 Trivy gate:** T or N-A (Render runtime; reassess at pivot).
+- **SOC2 risk-register cross-ref:** off-fleet runtime (Render) = LOW SOC2 evidence; mitigation = pivot decision.
 
-Full reference: `docs/ENVIRONMENTS.md`.
+## Cross-references
 
-## 11. External Services (MCPs, integrations)
+- `platform-docs/05-architecture/part-B-service-appendices/products/bellring-server.md` (pending S11B authoring)
+- `~/.claude/specs/2026-04-19-sales-notification-whitelabel.md` (Bellring spec)
+- `~/.claude/specs/2026-04-19-brand-rename-proposal.md` (Salvo → Bellring)
+- Pair repo: `bellring-extension`
+- `~/.claude/conventions/universal-claudemd.md` §41 brand architecture (Bellring)
+- `~/.claude/conventions/design-system.md` (Tier A; bellring-yellow primary)
 
-Routing hints for this repo (see universal §6 for the full map):
+## Migration from v1
 
-| Service | MCP | Use for |
-|---|---|---|
-| Sentry (`vagary-life-pvt-ltd`) | `mcp__sentry__*` | Prod errors, WebSocket disconnect storms. Currently off by default in `.claude/settings.json` (plugin disabled); enable per-session when investigating |
-| SendGrid | — | No MCP. CLI/API debugging via `curl https://api.sendgrid.com` with `SG.` bearer. Check dashboard for bounce/block state |
-| Render | — | Dashboard only. No MCP. Use Render web UI for logs + env vars |
-| Grafana / Loki | `mcp__grafana__*` / `mcp__loki__*` | Optional GlitchTip/Loki log queries if server is wired to Vagary observability stack |
-| PostHog | `mcp__posthog__*` | Not currently instrumented; Bellring multi-tenant pivot adds it |
-| Linear | `mcp__linear__*` | Existing "Index of News" + "ASM" projects; new Bellring project to be created on Phase 4 kickoff |
-| GitHub (Cramraika) | `gh` CLI default auth | Normal push flow (SMPL562 retired 2026-04-19; repo migrated to Cramraika) |
-| n8n | webhook | `N8N_WEBHOOK_URL=https://n8n.chinmayramraika.in` + `N8N_API_KEY` header |
-
-## 11.a Observability
-
-- **Render dashboard** — primary log source (web + cron). Reference-only, no SSH.
-- **In-process logging** — `console.log` + `MemoryManager` emits heap warnings at 200MB + `global.gc` on threshold.
-- **Health endpoints** — `/ping` (keepalive to mitigate 15-min idle spin-down), `/stats` (client count, OTP count, heap MB) — gated behind admin bearer.
-- **GlitchTip** (if `SENTRY_DSN` wired) — error tracker on Vagaryvoice; else Sentry org above.
-- **Grafana** — alert candidates: WebSocket reconnect rate, `/webhook` 5xx, heap > 200MB (already logged by `MemoryManager`).
-- **No APM / tracing** — single-process single-file service + MV3 service-worker cadence makes OpenTelemetry marginal. Pivot to Supabase Realtime lands native observability for the multi-tenant build.
-- **Gap**: no structured logger (pino/winston); JSON-line logs would improve Loki querying. Candidate pre-pivot if needed.
-
-## 12. Past Incidents / History (git-observable)
-
-- **Render free-tier memory** drove the `MemoryManager` (`cleanupRoutines`, 200MB warn + `global.gc`, LRU eviction in `connectionsPerToken`). Artifact: `--max-old-space-size=256` flag in both scripts.
-- **Stateless JWT migration** (`ab4497c`) replaced persistent server-side tokens to survive Render instance recycles — `tokens.json` now a soft-persist cache, not source of truth.
-- **Ping rate fixes** (`8c3212d`) — extension keepalive was tripping WebSocket rate limits; relaxed `MIN_CONNECTION_INTERVAL` from 30s→5s, `MIN_PING_INTERVAL` held at 30s.
-- **IP → token pivot** (`160a0ba`) — rate limits moved off IP (corporate NAT false positives) onto token identity.
-- **Security patch wave** (`43eab72`) — 9 npm vulns patched in one sweep, Mar 2026.
-- **CI quality upgrade** (`0739e00`) — lifted to ASM-grade syntax + audit + env validation (Mar 2026).
-
-## 13. Roadmap
-
-**Near-term (user-driven, probably Q2 2026):**
-- **Bellring multi-tenant pivot** — see `~/.claude/specs/2026-04-19-sales-notification-whitelabel.md` (spec renamed from Salvo 2026-04-19). Phase 0-4 mapped: fork to `Cramraika/bellring-webhook-worker` + adjacent repos, rewrite Express monolith as Hono on Coolify, delegate auth to Supabase, broadcast via Supabase Realtime. This repo stays as the Coding Ninjas production instance or gets retired once the extension points at `api.bellring.<tld>`.
-- **Supabase migration path** — auth + Postgres + Realtime. Decommissions `MemoryManager`, `ClientManager`, `FileBackedStorage`, OTP/JWT handling.
-- **Stripe billing** — four tiers (Free / $19 Team / $79 Growth / $299+ Enterprise). Products + prices created via `mcp__stripe__create_product`.
-- **Multi-tenant data model** — `workspaces` × `memberships` × `notification_events` × `adapter_configs` + RLS.
-- **Domain decision** — choose between `bellring.io`, `bellring.app`, or `bellring.ai`. Register + DNS + MX for transactional mail.
-
-**Later / deferred:**
-- CRM adapters: LeadSquared (P0, existing prod logic), HubSpot (P1), Salesforce (P1), Pipedrive (P2), Close (P2). Generic canonical webhook + Zapier/n8n/Make recipes Day 1.
-- Firefox + Edge extension builds (MV3 compatible) — handled by `bellring-extension`.
-- SAML/SCIM (Enterprise tier, Phase 5+).
-- SOC 2 Type II (stretch; only after 3+ Enterprise deals).
-
-**Out-of-scope:** mobile app (explicitly rejected per spec §7 Phase 5 — browser-extension-first is the wedge).
-
-## 14. Deviations from Universal Laws
-
-None. This repo follows universal laws as-is. Two repo-specific notes:
-- **Normal push flow** — SMPL562 retired 2026-04-19; repo now on Cramraika, standard `gh` auth.
-- **README is frozen** per `project-hygiene.md` → README-curation section (`bellring-server` / `bellring-extension` listed as "whitelabel SaaS brand surface — frozen"). Do not edit `README.md` without explicit user request; edit `docs/ENVIRONMENTS.md` for ops changes instead.
-
-## 14.a Doc Maintainers
-
-| Doc | Posture | Update trigger |
-|---|---|---|
-| `CLAUDE.md` | **Live contract** | Stack shift, new dependency, Bellring-pivot phase transition |
-| `README.md` | **Frozen** per hygiene § README curation (whitelabel brand surface) | Explicit user request only |
-| `docs/ENVIRONMENTS.md` | Live — ops-living | Env var change, deploy target change, new troubleshooting case |
-| `.env.example` | Live | Any new required env added by code change |
-| Pair-repo (`bellring-extension`) `CLAUDE.md` | Sibling — cross-reference on any schema / auth flow change | On any event_type schema / WebSocket protocol / OTP flow change |
-
-Doc-maintainer: Chinmay. Claude edits only on explicit request for README; body-edit authority for CLAUDE.md + ENVIRONMENTS.md runs through normal review. Preamble auto-sync via `~/.claude/scripts/sync-preambles.py`.
-
-## 15. Plugin Profile & Context
-
-- `.claude/settings.json` lists ~180 plugins, all `false` (the "scripts"/"node-backend" profile pattern — everything off by default, enable per-session via `plugin-profiles.sh`).
-- Per-project MCP disables: none currently. Figma/Stitch would be candidates to disable if pure backend work (no UI surface), but the Bellring multi-tenant pivot brings landing + dashboard design in-scope, so leave enabled.
-- `.vscode/` is gitignored but present locally — do not commit.
+**Major v1 → v2 changes:**
+1. Per-project-service-matrix row added — **bare-fork stack-up cluster** (or N-A if Path A); deployment-venue note added (Render).
+2. Path A vs Path B decision flagged as pending operator.
+3. Cosign per-repo CI fanout T-or-N-A flag (depends on pivot decision).
+4. Off-fleet status (Render today) noted explicitly.
+5. Bellring brand architecture §41 cited.
