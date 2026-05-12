@@ -43,3 +43,10 @@ npm-debug.log*
 
 # VS Code
 .vscode/
+
+# Tooling output dirs (per memory rule §2.3)
+.ast-grep/
+.cgcignore
+.gitnexus/
+.gitnexusignore
+.serena/
